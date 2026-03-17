@@ -1,7 +1,6 @@
 import os
 import logging
 import random
-import signal
 import asyncio
 import contextlib
 
@@ -10,25 +9,24 @@ from discord.ext import commands
 from dotenv import load_dotenv
 
 from status import build_status_embed
-from stats import get_profile_info, build_main_embed, ProfileStatsView
+from stats import get_profile_info, build_main_embed, ProfileStatsView, close_session
 import roles
 
 # ENV SETUP
-
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 
 STATUS_CHANNEL_ID = 1477285735655538709
+ADMIN_ROLE_ID = 1372986279159005265
 
 ROLE_MAP = {
     "⚔": 1436468159061168231,
-    "♾": 1411844893060686,
+    "♾": 1411844893705240686,
     "☢": 1407487106271412274,
 }
 
 # LOGGING
-
 
 handler = logging.FileHandler(
     filename="discord.log",
@@ -36,22 +34,48 @@ handler = logging.FileHandler(
     mode="w"
 )
 
-# INTENTS (memory opimized)
-
+# INTENTS
 
 intents = discord.Intents.default()
 intents.message_content = True
-intents.members = False  # Disable full member cache
+intents.members = True
 
-bot = commands.Bot(
-    command_prefix="syr",
-    intents=intents,
-    member_cache_flags=discord.MemberCacheFlags.none()
-)
+
+# BOT SUBCLASS
+
+class Bot(commands.Bot):
+
+    def __init__(self):
+        super().__init__(command_prefix="syr", intents=intents)
+
+    async def setup_hook(self):
+        self.add_view(
+            roles.VerificationView(
+                ADMIN_ROLE_ID,
+                1407487106271412274
+            )
+        )
+
+    async def close(self):
+        print("Shutting down gracefully...")
+
+        with contextlib.suppress(Exception):
+            channel = self.get_channel(STATUS_CHANNEL_ID)
+            if channel:
+                await asyncio.wait_for(
+                    channel.send(embed=build_status_embed("stopped")),
+                    timeout=3
+                )
+
+        await close_session()
+        await super().close()
+        print("Shutdown complete.")
+
+
+bot = Bot()
 
 
 # EVENTS
-
 
 @bot.event
 async def on_raw_reaction_add(payload):
@@ -59,7 +83,7 @@ async def on_raw_reaction_add(payload):
         bot,
         payload,
         ROLE_MAP,
-        1372986279159005265,
+        ADMIN_ROLE_ID,
         1407487106271412274
     )
 
@@ -85,7 +109,6 @@ async def on_message(message):
 
 # SLASH COMMAND /search
 
-
 @bot.tree.command(name="search", description="Search player profile")
 async def search(interaction: discord.Interaction, name: str):
     await interaction.response.defer()
@@ -99,30 +122,34 @@ async def search(interaction: discord.Interaction, name: str):
     embed = build_main_embed(name, profile)
     view = ProfileStatsView(name, profile)
 
-    await interaction.followup.send(
-        embed=embed,
-        view=view
-    )
+    await interaction.followup.send(embed=embed, view=view)
+
+
+# SLASH COMMAND /stop
+
+@bot.tree.command(name="stop", description="Gracefully shut down the bot")
+async def stop(interaction: discord.Interaction):
+    is_admin = any(role.id == ADMIN_ROLE_ID for role in interaction.user.roles)
+
+    if not is_admin:
+        await interaction.response.send_message("You are not admin.", ephemeral=True)
+        return
+
+    # Acknowledge immediately — close() will send the embed itself
+    await interaction.response.send_message("Shutting down...", ephemeral=True)
+
+    # Schedule close() on the running loop without blocking the interaction
+    asyncio.get_event_loop().create_task(bot.close())
 
 
 # READY EVENT
 
-
 @bot.event
 async def on_ready():
-    bot.add_view(
-        roles.VerificationView(
-            1372986279159005265,
-            1407487106271412274
-        )
-    )
-
     await bot.tree.sync()
-
     print(f"Logged in as {bot.user}")
 
     channel = bot.get_channel(STATUS_CHANNEL_ID)
-
     if channel:
         with contextlib.suppress(Exception):
             await asyncio.wait_for(
@@ -131,50 +158,17 @@ async def on_ready():
             )
 
 
-# SHUTDOWN
+# MAIN
 
-
-def shutdown_handler(sig, frame):
-    print(f"Received exit signal {sig}")
-
-    async def shutdown():
-
-        try:
-            channel = bot.get_channel(STATUS_CHANNEL_ID)
-
-            if channel:
-                await asyncio.wait_for(
-                    channel.send(embed=build_status_embed("stopped")),
-                    timeout=2
-                )
-        except Exception:
-            pass
-
-        try:
-            await bot.close()
-        except Exception:
-            pass
-
-    loop = asyncio.get_event_loop()
-
-    if loop.is_running():
-        asyncio.create_task(shutdown())
-    else:
-        loop.run_until_complete(shutdown())
-
-
-signal.signal(signal.SIGINT, shutdown_handler)
-signal.signal(signal.SIGTERM, shutdown_handler)
-
-# RUN BOT
+async def main():
+    async with bot:
+        await bot.start(TOKEN)
 
 
 if __name__ == "__main__":
+    logging.basicConfig(handlers=[handler], level=logging.INFO)
+
     try:
-        bot.run(
-            TOKEN,
-            log_handler=handler,
-            log_level=logging.INFO
-        )
+        asyncio.run(main())
     except KeyboardInterrupt:
         pass

@@ -1,5 +1,3 @@
-# roles.py
-
 import discord
 
 REACTION_MESSAGE_ID = 1477285069432422483
@@ -29,6 +27,13 @@ class VerificationView(discord.ui.View):
 
         member_id = int(interaction.channel.name.split("-")[-1])
         member = interaction.guild.get_member(member_id)
+
+        # Fallback to API fetch if not in cache
+        if not member:
+            try:
+                member = await interaction.guild.fetch_member(member_id)
+            except discord.NotFound:
+                member = None
 
         role = interaction.guild.get_role(self.ukry_role_id)
 
@@ -67,9 +72,13 @@ async def handle_reaction_add(bot, payload, role_map, admin_role_id, ukry_role_i
     if not guild:
         return
 
+    # Use cache first, fall back to API fetch
     member = guild.get_member(payload.user_id)
     if not member:
-        return
+        try:
+            member = await guild.fetch_member(payload.user_id)
+        except discord.NotFound:
+            return
 
     emoji = str(payload.emoji)
 
@@ -119,9 +128,13 @@ async def handle_reaction_remove(bot, payload, role_map):
     if not guild:
         return
 
+    # Use cache first, fall back to API fetch
     member = guild.get_member(payload.user_id)
     if not member:
-        return
+        try:
+            member = await guild.fetch_member(payload.user_id)
+        except discord.NotFound:
+            return
 
     emoji = str(payload.emoji)
 
