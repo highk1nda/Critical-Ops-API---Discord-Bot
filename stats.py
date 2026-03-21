@@ -1,5 +1,7 @@
+import io
 import aiohttp
 import discord
+from generate_stats_card import render_stats_card
 
 API_URL = "https://1-60-0.prod.copsapi.criticalforce.fi/api/public/profile"
 
@@ -98,6 +100,19 @@ async def get_profile_info(username: str):
 
     except Exception:
         return None
+
+
+# ============================================================
+# STATS CARD IMAGE
+# ============================================================
+
+def build_stats_image(username: str, profile: dict) -> discord.File:
+    """Render a 512×512 stats card and return it as a discord.File."""
+    img = render_stats_card(username, profile)
+    buf = io.BytesIO()
+    img.save(buf, "PNG", optimize=True)
+    buf.seek(0)
+    return discord.File(buf, filename="stats.png")
 
 
 # ============================================================
@@ -231,6 +246,9 @@ def build_main_embed(username, profile):
 
     embed.set_footer(text="cwazy stats bot")
 
+    # Attach the stats card image to the embed so it shows inline
+    embed.set_image(url="attachment://stats.png")
+
     return embed
 
 
@@ -248,10 +266,8 @@ class ProfileStatsView(discord.ui.View):
     async def on_timeout(self):
         self.stop()
 
-    async def update(self, interaction, builder):
-        embed = builder(self.username, self.profile)
-        await interaction.response.edit_message(embed=embed, view=self)
-
     @discord.ui.button(label="Summary", style=discord.ButtonStyle.secondary)
-    async def summary(self, interaction, button):
-        await self.update(interaction, build_main_embed)
+    async def summary(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = build_main_embed(self.username, self.profile)
+        file = build_stats_image(self.username, self.profile)
+        await interaction.response.edit_message(embed=embed, attachments=[file], view=self)
