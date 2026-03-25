@@ -1,5 +1,8 @@
 # created by virtualenv automatically
-.venv/bin
+.venv/*
 .env
 tests/*
 discord.log
+.idea
+__pycache__/*
+packages/*
