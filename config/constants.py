@@ -53,17 +53,17 @@ SMURF_WEIGHT_WINRATE = 10
 STATUS_TIMEZONE = "Europe/Berlin"
 STATUS_FOOTER = "Timezone: Europe/Berlin mala"
 STATUS_STARTED_TITLE = "🟢 Bot Started"
-STATUS_STARTED_DESC = "The bot is online fellas"
-STATUS_STOPPED_TITLE = "🔴 Bot Stopped"
-STATUS_STOPPED_DESC = "The bot has been shut down.🥺"
+STATUS_STARTED_DESC = "Syrnyk is online fellas"
+STATUS_STOPPED_TITLE = "🔴 Maintenance"
+STATUS_STOPPED_DESC = "The bot is currently down for maintenance.🥺"
 
 # ============================================================
 # Strings
 # ============================================================
 
 EMBED_FOOTER = "cwazy stats bot"
-MSG_NOT_ADMIN = "You are not admin."
+MSG_NOT_ADMIN = "You ain't an admin pal."
 MSG_SHUTTING_DOWN = "Shutting down..."
 MSG_PROFILE_NOT_FOUND = "Profile not found."
 MSG_APPROVED = "Approved. Role assigned."
-MSG_DECLINED = "Declined."
+MSG_DECLINED = "Declined :D."

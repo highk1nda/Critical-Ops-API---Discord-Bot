@@ -30,7 +30,7 @@ _FONT_LIGHT = "/usr/share/fonts/truetype/google-fonts/Poppins-Light.ttf"
 BG_DARK    = (10, 10, 18)
 PANEL_BG   = (18, 20, 32)
 PANEL_EDGE = (35, 38, 60)
-ACCENT     = (255, 140, 0)
+ACCENT     = (255, 209, 73)   # #FFD149 — soft warm gold
 TEXT_HI    = (240, 240, 255)
 TEXT_MID   = (160, 165, 200)
 TEXT_LOW   = (90, 95, 130)
@@ -171,30 +171,35 @@ def _glow_circle(img: Image.Image, cx: int, cy: int, r: int, color: tuple) -> No
     img.paste(Image.alpha_composite(base_crop, glow).convert("RGB"), (x0, y0))
 
 
-def _accent_gradient(img: Image.Image) -> None:
+def _background_gradient(img: Image.Image) -> None:
     """
-    Smooth ACCENT-color top gradient composited over the background.
+    Two color background gradient on top.
 
-    Structure: an 8px fully-opaque cap at the very top (the solid bar edge),
-    followed by a power-curve decay to fully transparent over 48px.
-    Using alpha_composite ensures correct blending over the dark background
-    with no visible banding.
+    Blends #FFD149 (warm gold) → #D1FF49 (yellow-green) horizontally
+    while fading from alpha≈80 to 0 vertically over the top 25% of the
+    card (256px). Applied before any panels so it bleeds freely across
+    section boundaries in the gaps between them.
     """
-    height = 56   # total gradient band height in px
-    cap    = 8    # fully-opaque top cap
+    height = SIZE // 4    # 256px — 25% of 1024
 
-    alpha = np.empty(height, dtype=np.float32)
-    alpha[:cap] = 255.0
-    t = np.linspace(0.0, 1.0, height - cap, endpoint=True)
-    alpha[cap:] = 255.0 * (1.0 - t) ** 1.5
-    alpha = np.clip(alpha, 0, 255).astype(np.uint8)
+    c1 = np.array([255, 209,  73], dtype=np.float32)   # #FFD149
+    c2 = np.array([209, 255,  73], dtype=np.float32)   # #D1FF49
 
-    r, g, b = ACCENT
-    layer = np.empty((height, SIZE, 4), dtype=np.uint8)
-    layer[:, :, 0] = r
-    layer[:, :, 1] = g
-    layer[:, :, 2] = b
-    layer[:, :, 3] = alpha[:, np.newaxis]   # broadcast across full width
+    # Horizontal color blend across full width
+    h   = np.linspace(0.0, 1.0, SIZE, dtype=np.float32)           # (W,)
+    rgb = ((1.0 - h)[:, None] * c1 + h[:, None] * c2)             # (W, 3)
+    rgb = np.tile(rgb[np.newaxis, :, :], (height, 1, 1))           # (H, W, 3)
+
+    # Vertical alpha falloff: ~80 at top, 0 at 256px
+    v     = np.linspace(0.0, 1.0, height, dtype=np.float32)        # (H,)
+    alpha = np.tile(
+        (80.0 * (1.0 - v) ** 1.8).astype(np.uint8)[:, np.newaxis],
+        (1, SIZE),
+    )                                                               # (H, W)
+
+    layer          = np.empty((height, SIZE, 4), dtype=np.uint8)
+    layer[:, :, :3] = np.clip(rgb, 0, 255).astype(np.uint8)
+    layer[:, :,  3] = alpha
 
     grad_img  = Image.fromarray(layer, "RGBA")
     base_crop = img.crop((0, 0, SIZE, height)).convert("RGBA")
@@ -212,11 +217,11 @@ def _build_static_template() -> Image.Image:
         arr[:, i] = grid_color
     img = Image.fromarray(arr, "RGB")
 
-    # Smooth top accent gradient (replaces blocky rectangles)
-    _accent_gradient(img)
+    # Full-width dual-color background gradient (behind all panels)
+    _background_gradient(img)
     draw = ImageDraw.Draw(img, "RGBA")  # bind draw after gradient paste
 
-    # Header panel — username/clan/season badge drawn dynamically
+    # Header panel — username/clan/season badge + metadata row drawn dynamically
     _rr(draw, (24, 32, SIZE - 24, 176), 20, fill=PANEL_BG, outline=PANEL_EDGE, width=2)
 
     # Smurf detection panel + static label

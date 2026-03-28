@@ -6,6 +6,8 @@ All stat computation lives here — rendering and detection modules only consume
 the structured dict produced by parse_profile().
 """
 
+from datetime import datetime, timezone
+
 
 # ── Metric helpers ────────────────────────────────────────────────────────────
 
@@ -31,9 +33,11 @@ def parse_profile(profile: dict) -> dict:
         ranked:             dict  — lifetime ranked totals
         non_ranked:         dict  — casual + custom combined
         most_played_season: dict | None
+        creation_year:      int | None
     """
     stats = profile.get("stats", {})
     clan_name: str = profile.get("clan", {}).get("basicInfo", {}).get("name", "Unknown")
+    creation_year = _parse_creation_year(profile)
     seasonal_stats: list = stats.get("seasonal_stats", [])
 
     ranked_kills = ranked_deaths = ranked_wins = ranked_losses = 0
@@ -109,7 +113,36 @@ def parse_profile(profile: dict) -> dict:
             "kd": calculate_kd(non_ranked_kills, non_ranked_deaths),
         },
         "most_played_season": most_played_season,
+        "creation_year": creation_year,
     }
+
+
+def _parse_creation_year(profile: dict) -> int | None:
+    """
+    Extract account creation year from raw profile data.
+    Handles ISO date strings ("2019-03-15T...") and Unix timestamps (seconds).
+    Returns None if the field is absent or unparseable.
+    """
+    basic_info = profile.get("basicInfo", {})
+    raw = (
+        basic_info.get("created")
+        or basic_info.get("created_at")
+        or basic_info.get("createdAt")
+        or profile.get("created")
+        or profile.get("created_at")
+        or profile.get("createdAt")
+    )
+    if not raw:
+        return None
+    try:
+        s = str(raw).strip()
+        if s.isdigit():
+            # Unix timestamp in seconds — 10 digits covers up to year 2286
+            return datetime.fromtimestamp(int(s), tz=timezone.utc).year
+        # ISO 8601 or any YYYY-prefixed string
+        return int(s[:4])
+    except (ValueError, TypeError, OSError):
+        return None
 
 
 def _find_most_played_season(

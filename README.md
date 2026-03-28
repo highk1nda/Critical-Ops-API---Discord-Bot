@@ -3,7 +3,7 @@
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![discord.py](https://img.shields.io/badge/discord.py-2.x-5865F2?logo=discord&logoColor=white)](https://discordpy.readthedocs.io/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Hosting](https://img.shields.io/badge/Hosting-Vaxon%20Cloud-orange)](https://vaxon.cloud/)
+[![Hosting](https://img.shields.io/badge/Hosting-Vaxon%20Cloud-orange)](https://vaxon.net/)
 
 > A lightweight, efficient Discord bot (codename: Syrnyk) that integrates with the Critical Ops API to fetch player stats, estimate cheater probability, manage roles, and generate stat card images and capable of **handling ~60–100 users per minute** on a single vCore setup.
 
